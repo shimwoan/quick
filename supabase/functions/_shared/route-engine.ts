@@ -533,23 +533,28 @@ export async function buildRouteRecommendation(
     }
   }
 
+  // 비정상 추천 제거: 최단경로보다 짧거나 추가시간이 0 이하인 경로
+  const valid = recommendations.filter((r) =>
+    r.distance_km > baseDistKm && r.extra_time_min > 0
+  );
+
   // 가성비(콜기대/추가시간) 순 정렬
-  recommendations.sort((a, b) => {
-    const ratioA = a.extra_time_min > 0 ? a.total_call_expectation / a.extra_time_min : a.total_call_expectation * 100;
-    const ratioB = b.extra_time_min > 0 ? b.total_call_expectation / b.extra_time_min : b.total_call_expectation * 100;
+  valid.sort((a, b) => {
+    const ratioA = a.total_call_expectation / a.extra_time_min;
+    const ratioB = b.total_call_expectation / b.extra_time_min;
     return ratioB - ratioA;
   });
 
   // 추천1만 기본 제공. 추천2는 경로가 충분히 다를 때만 (거리 20% 이상 차이)
   const filtered: RecommendedRoute[] = [];
-  if (recommendations.length > 0) {
-    filtered.push(recommendations[0]);
+  if (valid.length > 0) {
+    filtered.push(valid[0]);
 
-    for (let i = 1; i < recommendations.length; i++) {
-      const distDiff = Math.abs(recommendations[i].distance_km - filtered[0].distance_km);
+    for (let i = 1; i < valid.length; i++) {
+      const distDiff = Math.abs(valid[i].distance_km - filtered[0].distance_km);
       const distRatio = distDiff / Math.max(filtered[0].distance_km, 0.1);
       if (distRatio >= 0.2) {
-        filtered.push(recommendations[i]);
+        filtered.push(valid[i]);
         break; // 최대 2개
       }
     }
