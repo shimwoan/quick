@@ -76,7 +76,7 @@ const NaverMap = forwardRef<NaverMapHandle, NaverMapProps>(function NaverMap({
   const polylinesRef = useRef<any[]>([]);
   const heatmapMarkersRef = useRef<any[]>([]);
 
-  // 외부에서 호출: 경로 전체가 보이도록 지도 bounds 맞춤 (하단 패널 고려하여 위로 오프셋)
+  // 외부에서 호출: 경로 전체가 보이도록 지도 bounds 맞춤
   useImperativeHandle(ref, () => ({
     fitToRoutes: () => {
       const map = mapInstanceRef.current;
@@ -86,7 +86,6 @@ const NaverMap = forwardRef<NaverMapHandle, NaverMapProps>(function NaverMap({
       const bounds = new nMaps.LatLngBounds();
 
       for (const route of routes) {
-        // path(실제 도로 경로)가 있으면 사용
         const points = route.path && route.path.length > 0 ? route.path : route.waypoints;
         for (const p of points) {
           bounds.extend(new nMaps.LatLng(p.lat, p.lng));
@@ -95,14 +94,11 @@ const NaverMap = forwardRef<NaverMapHandle, NaverMapProps>(function NaverMap({
 
       if (bounds.isEmpty()) return;
 
-      // 하단 패널이 화면의 약 40%를 차지하므로, bounds 아래쪽을 확장하여 경로가 위로 올라오게 함
-      const sw = bounds.getSW();
-      const ne = bounds.getNE();
-      const latSpan = ne.lat() - sw.lat();
-      const paddedSW = new nMaps.LatLng(sw.lat() - latSpan * 0.5, sw.lng());
-      bounds.extend(paddedSW);
+      // 하단 패널 높이를 bottom padding으로 반영하여 경로가 화면 상단에 보이게
+      const panelEl = document.querySelector('.bottom-panel') as HTMLElement | null;
+      const panelH = panelEl?.offsetHeight ?? 340;
 
-      map.fitBounds(bounds, { top: 20, right: 20, bottom: 20, left: 20 });
+      map.fitBounds(bounds, { top: 40, right: 40, bottom: panelH + 40, left: 40 });
     },
   }), [routes]);
 
