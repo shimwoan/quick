@@ -1,4 +1,5 @@
 import { useRouteStore } from '../stores/useRouteStore';
+import type { DongScore } from '../types';
 
 /** 0~100 스코어를 현실적 콜 예상 범위로 변환 */
 function toCallRange(score: number): string {
@@ -7,7 +8,11 @@ function toCallRange(score: number): string {
   return '0';
 }
 
-export default function RouteList() {
+interface RouteListProps {
+  hotDongs: DongScore[];
+}
+
+export default function RouteList({ hotDongs }: RouteListProps) {
   const { recommendation, selectedRouteIndex, selectRoute } = useRouteStore();
 
   if (!recommendation) return null;
@@ -43,6 +48,16 @@ export default function RouteList() {
             <span className="route-stat-unit">분</span>
           </div>
         </div>
+        {hotDongs.length > 0 && (
+          <div className="route-via-dongs">
+            <span className="via-label">핫 지역 경유:</span>
+            {hotDongs.map((d) => (
+              <span key={d.dong_code} className="via-dong-chip">
+                {d.dong_name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 추천 경로들 */}
@@ -78,10 +93,10 @@ export default function RouteList() {
               <span className="route-stat-unit">분</span>
             </div>
           </div>
-          {rec.via_dongs.length > 0 && (
+          {hotDongs.length > 0 && (
             <div className="route-via-dongs">
-              <span className="via-label">경유:</span>
-              {rec.via_dongs.map((d) => (
+              <span className="via-label">핫 지역 경유:</span>
+              {hotDongs.map((d) => (
                 <span key={d.dong_code} className="via-dong-chip">
                   {d.dong_name}
                 </span>

@@ -3,7 +3,6 @@ import WakeLockBanner from './components/WakeLockBanner';
 import NaverMap, { type NaverMapHandle } from './components/NaverMap';
 import OrderInput from './components/OrderInput';
 import RouteList from './components/RouteList';
-import HotDongList from './components/HotDongList';
 import { useDongScores } from './hooks/useDongScores';
 import { useOrderStore } from './stores/useOrderStore';
 import { useRouteStore } from './stores/useRouteStore';
@@ -184,9 +183,8 @@ export default function App() {
           {errorMsg && <div className="error-message">{errorMsg}</div>}
 
           <div ref={routeListRef}>
-            <RouteList />
+            <RouteList hotDongs={hotDongs} />
           </div>
-          <HotDongList dongs={hotDongs} />
         </div>
       </div>
     </div>
