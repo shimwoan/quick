@@ -59,7 +59,7 @@ export default function App() {
 
     try {
       const startLoc = orders[0].pickup_location;
-      const rec = await recommendRoute(startLoc, heading, orders, heatmapDongs);
+      const rec = await recommendRoute(startLoc, 0, orders, heatmapDongs);
       setRecommendation(rec);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '경로 추천에 실패했습니다.';
@@ -81,7 +81,7 @@ export default function App() {
       const existingOrders = orders.slice(0, -1);
       const newOrder = orders[orders.length - 1];
       const startLoc = orders[0].pickup_location;
-      const rec = await recalculateRoute(startLoc, heading, existingOrders, newOrder, heatmapDongs);
+      const rec = await recalculateRoute(startLoc, 0, existingOrders, newOrder, heatmapDongs);
       setRecommendation(rec);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '경로 재계산에 실패했습니다.';
@@ -101,7 +101,6 @@ export default function App() {
     <div className="app">
       <WakeLockBanner />
 
-      {geoError && <div className="geo-error-banner">{geoError}</div>}
 
       <div className="map-container">
         <NaverMap
