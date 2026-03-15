@@ -19,7 +19,7 @@ export default function RouteList({ hotDongs }: RouteListProps) {
   if (!recommendation) return null;
 
   const { shortest_route, recommendations } = recommendation;
-  const filteredDongs = hotDongs.filter((d) => d.call_expectation >= MIN_HOT_DONG_SCORE);
+  const nearbyDongs = hotDongs.filter((d) => d.call_expectation >= MIN_HOT_DONG_SCORE);
 
   return (
     <div className="route-list">
@@ -46,55 +46,58 @@ export default function RouteList({ hotDongs }: RouteListProps) {
             <span className="route-stat-unit">분</span>
           </div>
         </div>
-        {filteredDongs.length > 0 && (
+        {nearbyDongs.length > 0 && (
           <div className="route-via-dongs">
-            <span className="via-label">핫 지역 경유:</span>
-            {filteredDongs.map((d) => (
+            <span className="via-label">인근 핫 지역:</span>
+            {nearbyDongs.map((d) => (
               <span key={d.dong_code} className="via-dong-chip">{d.dong_name}</span>
             ))}
           </div>
         )}
       </div>
 
-      {/* 추천 경로들 */}
-      {recommendations.map((rec, idx) => (
-        <div
-          key={rec.rank}
-          className={`route-card ${selectedRouteIndex === idx ? 'route-card--selected' : ''}`}
-          onClick={() => selectRoute(idx)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && selectRoute(idx)}
-        >
-          <div className="route-card-header">
-            <span className="route-label route-label--rec">
-              {rec.label || `추천 ${rec.rank}`}
-            </span>
-            <span className="badge badge--time">+{rec.extra_time_min}분</span>
-            <span className="badge badge--calls">
-              콜 기대 {toCallRange(rec.total_call_expectation)}건
-            </span>
+      {/* 추천 경로들 — 각 추천의 via_dongs 표시 */}
+      {recommendations.map((rec, idx) => {
+        const viaDongs = rec.via_dongs.filter((d) => d.call_expectation >= MIN_HOT_DONG_SCORE);
+        return (
+          <div
+            key={rec.rank}
+            className={`route-card ${selectedRouteIndex === idx ? 'route-card--selected' : ''}`}
+            onClick={() => selectRoute(idx)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && selectRoute(idx)}
+          >
+            <div className="route-card-header">
+              <span className="route-label route-label--rec">
+                {rec.label || `추천 ${rec.rank}`}
+              </span>
+              <span className="badge badge--time">+{rec.extra_time_min}분</span>
+              <span className="badge badge--calls">
+                콜 기대 {toCallRange(rec.total_call_expectation)}건
+              </span>
+            </div>
+            <div className="route-card-body">
+              <div className="route-stat">
+                <span className="route-stat-value">{rec.distance_km.toFixed(1)}</span>
+                <span className="route-stat-unit">km</span>
+              </div>
+              <div className="route-stat">
+                <span className="route-stat-value">{Math.round(rec.time_min)}</span>
+                <span className="route-stat-unit">분</span>
+              </div>
+            </div>
+            {viaDongs.length > 0 && (
+              <div className="route-via-dongs">
+                <span className="via-label">핫 지역 경유:</span>
+                {viaDongs.map((d) => (
+                  <span key={d.dong_code} className="via-dong-chip">{d.dong_name}</span>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="route-card-body">
-            <div className="route-stat">
-              <span className="route-stat-value">{rec.distance_km.toFixed(1)}</span>
-              <span className="route-stat-unit">km</span>
-            </div>
-            <div className="route-stat">
-              <span className="route-stat-value">{Math.round(rec.time_min)}</span>
-              <span className="route-stat-unit">분</span>
-            </div>
-          </div>
-          {filteredDongs.length > 0 && (
-            <div className="route-via-dongs">
-              <span className="via-label">핫 지역 경유:</span>
-              {filteredDongs.map((d) => (
-                <span key={d.dong_code} className="via-dong-chip">{d.dong_name}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
