@@ -4,7 +4,6 @@ import NaverMap from './components/NaverMap';
 import OrderInput from './components/OrderInput';
 import RouteList from './components/RouteList';
 import HotDongList from './components/HotDongList';
-import { useGeolocation } from './hooks/useGeolocation';
 import { useDongScores } from './hooks/useDongScores';
 import { useOrderStore } from './stores/useOrderStore';
 import { useRouteStore } from './stores/useRouteStore';
@@ -15,7 +14,7 @@ const PANEL_MIN = 280;     // 접힌 상태 최소 높이
 const PANEL_MAX_VH = 85;   // 최대 높이 (vh)
 
 export default function App() {
-  const { location, heading, error: geoError } = useGeolocation();
+  // GPS 위치 추적 미사용 - 출발지/도착지는 오더 입력 기반
   const { dongs: heatmapDongs } = useDongScores();
   const { orders } = useOrderStore();
   const {
