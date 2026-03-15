@@ -462,8 +462,8 @@ export async function buildRouteRecommendation(
     // → 그 동 근처를 자연스럽게 지나가되, center까지 갈 필요 없음
     const nudgePoints = combo.dongs.map((dong) => {
       const nearest = findNearestPointOnPath(baseResult.path, dong.center_point);
-      // base route의 가장 가까운 점에서 동 center 방향으로 30%만 이동
-      const NUDGE_RATIO = 0.3;
+      // base route에서 동 방향으로 아주 살짝(10%)만 벗어남 — 그냥 스쳐가는 정도
+      const NUDGE_RATIO = 0.1;
       return {
         lat: nearest.lat + (dong.center_point.lat - nearest.lat) * NUDGE_RATIO,
         lng: nearest.lng + (dong.center_point.lng - nearest.lng) * NUDGE_RATIO,
