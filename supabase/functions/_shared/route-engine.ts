@@ -545,17 +545,17 @@ export async function buildRouteRecommendation(
     return ratioB - ratioA;
   });
 
-  // 추천1만 기본 제공. 추천2는 경로가 충분히 다를 때만 (거리 20% 이상 차이)
+  // 추천1 기본 제공. 추천2는 경유 핫동이 다를 때만 (최대 2개)
   const filtered: RecommendedRoute[] = [];
   if (valid.length > 0) {
     filtered.push(valid[0]);
 
+    const first = new Set(valid[0].via_dongs.map((d) => d.dong_code));
     for (let i = 1; i < valid.length; i++) {
-      const distDiff = Math.abs(valid[i].distance_km - filtered[0].distance_km);
-      const distRatio = distDiff / Math.max(filtered[0].distance_km, 0.1);
-      if (distRatio >= 0.2) {
+      const hasDifferentDong = valid[i].via_dongs.some((d) => !first.has(d.dong_code));
+      if (hasDifferentDong) {
         filtered.push(valid[i]);
-        break; // 최대 2개
+        break;
       }
     }
   }
