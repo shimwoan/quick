@@ -8,7 +8,7 @@ import { useOrderStore } from './stores/useOrderStore';
 import { useRouteStore } from './stores/useRouteStore';
 import { recommendRoute, recalculateRoute } from './services/routeService';
 import type { Route } from './types';
-import { MIN_HOT_DONG_SCORE, MAX_DONG_ROUTE_DIST_KM } from './constants';
+import { MIN_HOT_DONG_SCORE } from './constants';
 
 const PANEL_MIN = 340;     // 접힌 상태 최소 높이
 const PANEL_MAX_VH = 85;   // 최대 높이 (vh)
@@ -107,39 +107,11 @@ export default function App() {
     return [recommendation.shortest_route, ...recommendation.recommendations];
   }, [recommendation]);
 
-  const allHotDongs = recommendation?.nearby_hot_dongs ?? [];
-
-  // 선택된 경로의 실제 path 기준으로 가까운 핫동만 지도에 표시
+  // 백엔드에서 필터된 nearby_hot_dongs를 스코어 기준만 추가 필터
   const hotDongs = useMemo(() => {
-    if (!recommendation || allHotDongs.length === 0) return [];
-
-    let selectedRoute;
-    if (selectedRouteIndex === null || selectedRouteIndex === -1) {
-      selectedRoute = recommendation.shortest_route;
-    } else {
-      selectedRoute = recommendation.recommendations[selectedRouteIndex];
-    }
-
-    const path = selectedRoute?.path;
-    if (!path || path.length === 0) return allHotDongs;
-
-    // path 샘플링
-    const sampled: { lat: number; lng: number }[] = [];
-    for (let i = 0; i < path.length; i += 10) sampled.push(path[i]);
-    if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
-
-    return allHotDongs.filter((dong) => {
-      if (dong.call_expectation < MIN_HOT_DONG_SCORE) return false;
-      const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
-      if (!heat) return false;
-      for (const p of sampled) {
-        const dlat = (p.lat - heat.lat) * 111;
-        const dlng = (p.lng - heat.lng) * 88;
-        if (Math.sqrt(dlat * dlat + dlng * dlng) <= MAX_DONG_ROUTE_DIST_KM) return true;
-      }
-      return false;
-    });
-  }, [recommendation, selectedRouteIndex, allHotDongs, heatmapDongs]);
+    const all = recommendation?.nearby_hot_dongs ?? [];
+    return all.filter((d) => d.call_expectation >= MIN_HOT_DONG_SCORE);
+  }, [recommendation]);
 
   return (
     <div className="app">
@@ -216,7 +188,7 @@ export default function App() {
           {errorMsg && <div className="error-message">{errorMsg}</div>}
 
           <div ref={routeListRef}>
-            <RouteList hotDongs={allHotDongs} heatmapDongs={heatmapDongs} />
+            <RouteList hotDongs={hotDongs} />
           </div>
         </div>
       </div>
