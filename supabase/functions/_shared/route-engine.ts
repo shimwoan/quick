@@ -450,120 +450,35 @@ export async function buildRouteRecommendation(
     dong.extra_time_min = Math.round((detourKm / 30) * 60);
   }
 
-  // 5. 경유지 조합 생성 (경로 순서 유지됨)
-  const combos = generateWaypointCombinations(rankedHotDongs, maxRecommendations);
-  const recommendations: RecommendedRoute[] = [];
+  // 5. 추천 경로 = 최단경로와 동일 경로 + 근처 핫동 정보
+  //    핫동 센터를 Naver 경유지로 추가하지 않음 (경로 헤맴 방지)
+  //    대신 최단경로가 어떤 핫동 근처를 지나가는지를 알려줌
+  const viaDongs: DongScore[] = rankedHotDongs.map((d) => ({
+    dong_code: d.dong_code,
+    dong_name: d.dong_name,
+    call_expectation: d.call_expectation,
+    extra_time_min: d.extra_time_min,
+  }));
 
-  for (let i = 0; i < combos.length; i++) {
-    const combo = combos[i];
-
-    // 핵심: 동의 center_point를 그대로 경유지로 쓰지 않고,
-    // base route에서 동 방향으로 살짝(30%)만 벗어난 "넛지 포인트"를 사용.
-    // → 그 동 근처를 자연스럽게 지나가되, center까지 갈 필요 없음
-    const nudgePoints = combo.dongs.map((dong) => {
-      const nearest = findNearestPointOnPath(baseResult.path, dong.center_point);
-      // base route에서 동 방향으로 아주 살짝(10%)만 벗어남 — 그냥 스쳐가는 정도
-      const NUDGE_RATIO = 0.1;
-      return {
-        lat: nearest.lat + (dong.center_point.lat - nearest.lat) * NUDGE_RATIO,
-        lng: nearest.lng + (dong.center_point.lng - nearest.lng) * NUDGE_RATIO,
-      };
-    });
-
-    // 오더 경유지 + 넛지 포인트를 합쳐서 실제 경로 순서로 정렬
-    const allIntermediates = sortWaypointsAlongBasePath(
-      baseResult.path,
-      [...orderIntermediates, ...nudgePoints],
-    );
-
-    const viaDongs: DongScore[] = combo.dongs.map((d) => ({
-      dong_code: d.dong_code,
-      dong_name: d.dong_name,
-      call_expectation: d.call_expectation,
-      extra_time_min: d.extra_time_min,
-    }));
-
-    const totalCallExpectation = combo.dongs.reduce(
-      (sum, d) => sum + d.call_expectation, 0,
-    );
-
-    const recWaypoints: RouteWaypoint[] = [
-      { lat: currentLocation.lat, lng: currentLocation.lng, type: "current" },
-    ];
-    for (const wp of orderedWps) {
-      recWaypoints.push({
-        lat: wp.location.lat,
-        lng: wp.location.lng,
-        type: wp.type,
-        order_id: wp.order_id,
-      });
-    }
-    for (const dong of combo.dongs) {
-      recWaypoints.push({
-        lat: dong.center_point.lat,
-        lng: dong.center_point.lng,
-        type: "hot_zone",
-        dong: dong.dong_name,
-      });
-    }
-
-    try {
-      const recResult = await callNaverDirections(
-        currentLocation,
-        goal,
-        allIntermediates.length > 0 ? allIntermediates : undefined,
-      );
-
-      const recTimeMin = Math.round(recResult.duration_ms / 60000);
-      const recDistKm = Math.round(recResult.distance_m / 1000 * 10) / 10;
-
-      recommendations.push({
-        rank: i + 1,
-        label: `추천 ${i + 1}`,
-        distance_km: recDistKm,
-        time_min: recTimeMin,
-        extra_time_min: recTimeMin - baseTimeMin,
-        total_call_expectation: totalCallExpectation,
-        via_dongs: viaDongs,
-        waypoints: recWaypoints,
-        path: recResult.path,
-      });
-    } catch (err) {
-      console.error(`Recommendation ${i + 1} failed:`, err);
-    }
-  }
-
-  // 비정상 추천 제거: 최단경로보다 짧거나 추가시간이 0 이하인 경로
-  const valid = recommendations.filter((r) =>
-    r.distance_km > baseDistKm && r.extra_time_min > 0
+  const totalCallExpectation = rankedHotDongs.reduce(
+    (sum, d) => sum + d.call_expectation, 0,
   );
 
-  // 가성비(콜기대/추가시간) 순 정렬
-  valid.sort((a, b) => {
-    const ratioA = a.total_call_expectation / a.extra_time_min;
-    const ratioB = b.total_call_expectation / b.extra_time_min;
-    return ratioB - ratioA;
-  });
-
-  // 추천1 기본 제공. 추천2는 경유 핫동이 다를 때만 (최대 2개)
   const filtered: RecommendedRoute[] = [];
-  if (valid.length > 0) {
-    filtered.push(valid[0]);
 
-    const first = new Set(valid[0].via_dongs.map((d) => d.dong_code));
-    for (let i = 1; i < valid.length; i++) {
-      const hasDifferentDong = valid[i].via_dongs.some((d) => !first.has(d.dong_code));
-      if (hasDifferentDong) {
-        filtered.push(valid[i]);
-        break;
-      }
-    }
+  if (viaDongs.length > 0) {
+    filtered.push({
+      rank: 1,
+      label: '추천 1',
+      distance_km: baseDistKm,
+      time_min: baseTimeMin,
+      extra_time_min: 0,
+      total_call_expectation: totalCallExpectation,
+      via_dongs: viaDongs,
+      waypoints: shortestWaypoints,
+      path: baseResult.path,
+    });
   }
-
-  filtered.forEach((r, idx) => {
-    r.rank = idx + 1;
-    r.label = `추천 ${idx + 1}`;
-  });
 
   const nearbyHotDongs: DongScore[] = rankedHotDongs
     .sort((a, b) => b.call_expectation - a.call_expectation)
