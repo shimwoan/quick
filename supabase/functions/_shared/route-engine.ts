@@ -450,34 +450,108 @@ export async function buildRouteRecommendation(
     dong.extra_time_min = Math.round((detourKm / 30) * 60);
   }
 
-  // 5. 추천 경로 = 최단경로와 동일 경로 + 근처 핫동 정보
-  //    핫동 센터를 Naver 경유지로 추가하지 않음 (경로 헤맴 방지)
-  //    대신 최단경로가 어떤 핫동 근처를 지나가는지를 알려줌
-  const viaDongs: DongScore[] = rankedHotDongs.map((d) => ({
+  // 5. 추천 경로 생성
+  const filtered: RecommendedRoute[] = [];
+
+  // 추천 1: 최단경로 그대로 + 지나가는 핫동 정보
+  const viaDongs1: DongScore[] = rankedHotDongs.map((d) => ({
     dong_code: d.dong_code,
     dong_name: d.dong_name,
     call_expectation: d.call_expectation,
     extra_time_min: d.extra_time_min,
   }));
 
-  const totalCallExpectation = rankedHotDongs.reduce(
-    (sum, d) => sum + d.call_expectation, 0,
-  );
-
-  const filtered: RecommendedRoute[] = [];
-
-  if (viaDongs.length > 0) {
+  if (viaDongs1.length > 0) {
     filtered.push({
       rank: 1,
       label: '추천 1',
       distance_km: baseDistKm,
       time_min: baseTimeMin,
       extra_time_min: 0,
-      total_call_expectation: totalCallExpectation,
-      via_dongs: viaDongs,
+      total_call_expectation: rankedHotDongs.reduce((s, d) => s + d.call_expectation, 0),
+      via_dongs: viaDongs1,
       waypoints: shortestWaypoints,
       path: baseResult.path,
     });
+  }
+
+  // 추천 2: 가장 핫한 동을 실제 경유하는 우회 경로
+  // 최단경로에서 이미 가까운 동(1km 이내)은 제외하고, 가장 점수 높은 동 1개를 경유
+  if (rankedHotDongs.length > 0) {
+    // 최단경로에서 이미 가까운 동 찾기
+    const basePathSampled = samplePath(baseResult.path, 50);
+    const alreadyNearby = new Set<string>();
+    for (const dong of rankedHotDongs) {
+      for (const p of basePathSampled) {
+        if (haversineKm(p, dong.center_point) <= 1.0) {
+          alreadyNearby.add(dong.dong_code);
+          break;
+        }
+      }
+    }
+
+    // 최단경로에서 멀지만 점수 높은 동 = 일부러 경유할 가치 있는 동
+    const detourCandidates = rankedHotDongs
+      .filter((d) => !alreadyNearby.has(d.dong_code))
+      .sort((a, b) => b.call_expectation - a.call_expectation);
+
+    if (detourCandidates.length > 0) {
+      const detourDong = detourCandidates[0];
+
+      // Naver에 경유지로 추가
+      const detourIntermediates = sortWaypointsAlongBasePath(
+        baseResult.path,
+        [...orderIntermediates, detourDong.center_point],
+      );
+
+      try {
+        const detourResult = await callNaverDirections(
+          currentLocation,
+          goal,
+          detourIntermediates.length > 0 ? detourIntermediates : undefined,
+        );
+
+        const detourTimeMin = Math.round(detourResult.duration_ms / 60000);
+        const detourDistKm = Math.round(detourResult.distance_m / 1000 * 10) / 10;
+
+        if (detourDistKm > baseDistKm && detourTimeMin > baseTimeMin) {
+          const detourViaDongs: DongScore[] = [{
+            dong_code: detourDong.dong_code,
+            dong_name: detourDong.dong_name,
+            call_expectation: detourDong.call_expectation,
+            extra_time_min: detourTimeMin - baseTimeMin,
+          }];
+
+          const detourWaypoints: RouteWaypoint[] = [
+            { lat: currentLocation.lat, lng: currentLocation.lng, type: "current" },
+          ];
+          for (const wp of orderedWps) {
+            detourWaypoints.push({
+              lat: wp.location.lat, lng: wp.location.lng,
+              type: wp.type, order_id: wp.order_id,
+            });
+          }
+          detourWaypoints.push({
+            lat: detourDong.center_point.lat, lng: detourDong.center_point.lng,
+            type: "hot_zone", dong: detourDong.dong_name,
+          });
+
+          filtered.push({
+            rank: 2,
+            label: '추천 2',
+            distance_km: detourDistKm,
+            time_min: detourTimeMin,
+            extra_time_min: detourTimeMin - baseTimeMin,
+            total_call_expectation: detourDong.call_expectation,
+            via_dongs: detourViaDongs,
+            waypoints: detourWaypoints,
+            path: detourResult.path,
+          });
+        }
+      } catch (err) {
+        console.error("Detour route failed:", err);
+      }
+    }
   }
 
   const nearbyHotDongs: DongScore[] = rankedHotDongs
