@@ -107,17 +107,7 @@ export default function App() {
     return [recommendation.shortest_route, ...recommendation.recommendations];
   }, [recommendation]);
 
-  // 선택된 경로에 따라 인근 핫지역 변경
-  const hotDongs = useMemo(() => {
-    if (!recommendation) return [];
-    // 최단경로(-1) 선택 시: 전체 nearby_hot_dongs
-    if (selectedRouteIndex === null || selectedRouteIndex === -1) {
-      return recommendation.nearby_hot_dongs;
-    }
-    // 추천 경로 선택 시: 해당 추천의 via_dongs
-    const selected = recommendation.recommendations[selectedRouteIndex];
-    return selected?.via_dongs ?? recommendation.nearby_hot_dongs;
-  }, [recommendation, selectedRouteIndex]);
+  const hotDongs = recommendation?.nearby_hot_dongs ?? [];
 
   return (
     <div className="app">
