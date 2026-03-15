@@ -31,6 +31,8 @@ function filterDongsNearPath(
   if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
 
   return hotDongs.filter((dong) => {
+    // 50점 미만은 핫 지역 아님
+    if (dong.call_expectation < 50) return false;
     // heatmapDongs에서 좌표 찾기
     const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
     if (!heat) return false;

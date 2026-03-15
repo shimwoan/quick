@@ -128,6 +128,7 @@ export default function App() {
     if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
 
     return allHotDongs.filter((dong) => {
+      if (dong.call_expectation < 50) return false;
       const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
       if (!heat) return false;
       for (const p of sampled) {
