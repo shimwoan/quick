@@ -451,17 +451,32 @@ export async function buildRouteRecommendation(
   }
 
   // 5. 추천 경로 생성: 각 핫동을 개별 경유하는 경로 (점수 높은 순)
-  //    추천 1 = 가장 핫한 동 경유, 추천 2 = 두 번째 핫한 동 경유, ...
+  //    최단경로에서 이미 가까운(1km) 동은 경유지 안 넣음 (이미 지나감)
+  //    멀리 떨어진 핫동만 Naver 경유지로 추가
   const filtered: RecommendedRoute[] = [];
   const byScore = [...rankedHotDongs].sort((a, b) => b.call_expectation - a.call_expectation);
+
+  // 최단경로에서 이미 가까운 동 판별
+  const basePathSampled = samplePath(baseResult.path, 80);
+  const alreadyOnRoute = new Set<string>();
+  for (const dong of byScore) {
+    for (const p of basePathSampled) {
+      if (haversineKm(p, dong.center_point) <= 1.5) {
+        alreadyOnRoute.add(dong.dong_code);
+        break;
+      }
+    }
+  }
 
   for (let i = 0; i < Math.min(byScore.length, maxRecommendations); i++) {
     const dong = byScore[i];
 
-    const detourIntermediates = sortWaypointsAlongBasePath(
-      baseResult.path,
-      [...orderIntermediates, dong.center_point],
-    );
+    // 이미 최단경로가 지나가는 동이면 경유지 추가 없이 최단경로 그대로
+    const needsDetour = !alreadyOnRoute.has(dong.dong_code);
+
+    const detourIntermediates = needsDetour
+      ? sortWaypointsAlongBasePath(baseResult.path, [...orderIntermediates, dong.center_point])
+      : orderIntermediates;
 
     try {
       const detourResult = await callNaverDirections(
