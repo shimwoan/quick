@@ -183,7 +183,7 @@ export default function App() {
           {errorMsg && <div className="error-message">{errorMsg}</div>}
 
           <div ref={routeListRef}>
-            <RouteList hotDongs={hotDongs} />
+            <RouteList hotDongs={hotDongs} heatmapDongs={heatmapDongs} />
           </div>
         </div>
       </div>

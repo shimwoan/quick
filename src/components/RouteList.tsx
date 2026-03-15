@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { useRouteStore } from '../stores/useRouteStore';
-import type { DongScore } from '../types';
+import type { DongScore, Route, LatLng } from '../types';
+import type { DongHeatData } from '../hooks/useDongScores';
 
 /** 0~100 스코어를 현실적 콜 예상 범위로 변환 */
 function toCallRange(score: number): string {
@@ -8,11 +10,45 @@ function toCallRange(score: number): string {
   return '0';
 }
 
-interface RouteListProps {
-  hotDongs: DongScore[];
+/** 두 점 사이 거리(km) 근사 */
+function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const dlat = (a.lat - b.lat) * 111;
+  const dlng = (a.lng - b.lng) * 88;
+  return Math.sqrt(dlat * dlat + dlng * dlng);
 }
 
-export default function RouteList({ hotDongs }: RouteListProps) {
+/** 경로 path에서 1.5km 이내인 동만 필터 */
+function filterDongsNearPath(
+  path: LatLng[] | undefined,
+  hotDongs: DongScore[],
+  heatmapDongs: DongHeatData[],
+): DongScore[] {
+  if (!path || path.length === 0) return hotDongs;
+
+  // path를 샘플링 (매 10번째 점)
+  const sampled: LatLng[] = [];
+  for (let i = 0; i < path.length; i += 10) sampled.push(path[i]);
+  if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
+
+  return hotDongs.filter((dong) => {
+    // heatmapDongs에서 좌표 찾기
+    const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
+    if (!heat) return false;
+
+    // path 위의 아무 점에서 1.5km 이내인지
+    for (const p of sampled) {
+      if (distKm(p, heat) <= 1.5) return true;
+    }
+    return false;
+  });
+}
+
+interface RouteListProps {
+  hotDongs: DongScore[];
+  heatmapDongs: DongHeatData[];
+}
+
+export default function RouteList({ hotDongs, heatmapDongs }: RouteListProps) {
   const { recommendation, selectedRouteIndex, selectRoute } = useRouteStore();
 
   if (!recommendation) return null;
@@ -24,87 +60,91 @@ export default function RouteList({ hotDongs }: RouteListProps) {
       <h3 className="section-title">경로 추천 결과</h3>
 
       {/* 최단 경로 */}
-      <div
-        className={`route-card ${selectedRouteIndex === -1 ? 'route-card--selected' : ''}`}
-        onClick={() => selectRoute(-1)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && selectRoute(-1)}
-      >
-        <div className="route-card-header">
-          <span className="route-label route-label--shortest">최단경로</span>
-        </div>
-        <div className="route-card-body">
-          <div className="route-stat">
-            <span className="route-stat-value">
-              {shortest_route.distance_km.toFixed(1)}
-            </span>
-            <span className="route-stat-unit">km</span>
-          </div>
-          <div className="route-stat">
-            <span className="route-stat-value">
-              {Math.round(shortest_route.time_min)}
-            </span>
-            <span className="route-stat-unit">분</span>
-          </div>
-        </div>
-        {hotDongs.length > 0 && (
-          <div className="route-via-dongs">
-            <span className="via-label">핫 지역 경유:</span>
-            {hotDongs.map((d) => (
-              <span key={d.dong_code} className="via-dong-chip">
-                {d.dong_name}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <RouteCard
+        route={shortest_route}
+        selected={selectedRouteIndex === -1}
+        onSelect={() => selectRoute(-1)}
+        label={<span className="route-label route-label--shortest">최단경로</span>}
+        hotDongs={hotDongs}
+        heatmapDongs={heatmapDongs}
+      />
 
       {/* 추천 경로들 */}
       {recommendations.map((rec, idx) => (
-        <div
+        <RouteCard
           key={rec.rank}
-          className={`route-card ${selectedRouteIndex === idx ? 'route-card--selected' : ''}`}
-          onClick={() => selectRoute(idx)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && selectRoute(idx)}
-        >
-          <div className="route-card-header">
-            <span className="route-label route-label--rec">
-              {rec.label || `추천 ${rec.rank}`}
-            </span>
-            <span className="badge badge--time">+{rec.extra_time_min}분</span>
-            <span className="badge badge--calls">
-              콜 기대 {toCallRange(rec.total_call_expectation)}건
-            </span>
-          </div>
-          <div className="route-card-body">
-            <div className="route-stat">
-              <span className="route-stat-value">
-                {rec.distance_km.toFixed(1)}
+          route={rec}
+          selected={selectedRouteIndex === idx}
+          onSelect={() => selectRoute(idx)}
+          label={
+            <>
+              <span className="route-label route-label--rec">
+                {rec.label || `추천 ${rec.rank}`}
               </span>
-              <span className="route-stat-unit">km</span>
-            </div>
-            <div className="route-stat">
-              <span className="route-stat-value">
-                {Math.round(rec.time_min)}
+              <span className="badge badge--time">+{rec.extra_time_min}분</span>
+              <span className="badge badge--calls">
+                콜 기대 {toCallRange(rec.total_call_expectation)}건
               </span>
-              <span className="route-stat-unit">분</span>
-            </div>
-          </div>
-          {hotDongs.length > 0 && (
-            <div className="route-via-dongs">
-              <span className="via-label">핫 지역 경유:</span>
-              {hotDongs.map((d) => (
-                <span key={d.dong_code} className="via-dong-chip">
-                  {d.dong_name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+            </>
+          }
+          hotDongs={hotDongs}
+          heatmapDongs={heatmapDongs}
+        />
       ))}
+    </div>
+  );
+}
+
+function RouteCard({
+  route,
+  selected,
+  onSelect,
+  label,
+  hotDongs,
+  heatmapDongs,
+}: {
+  route: Route;
+  selected: boolean;
+  onSelect: () => void;
+  label: React.ReactNode;
+  hotDongs: DongScore[];
+  heatmapDongs: DongHeatData[];
+}) {
+  // 이 경로의 실제 path 기준으로 가까운 핫동만 필터
+  const nearbyDongs = useMemo(
+    () => filterDongsNearPath(route.path, hotDongs, heatmapDongs),
+    [route.path, hotDongs, heatmapDongs],
+  );
+
+  return (
+    <div
+      className={`route-card ${selected ? 'route-card--selected' : ''}`}
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onSelect()}
+    >
+      <div className="route-card-header">{label}</div>
+      <div className="route-card-body">
+        <div className="route-stat">
+          <span className="route-stat-value">{route.distance_km.toFixed(1)}</span>
+          <span className="route-stat-unit">km</span>
+        </div>
+        <div className="route-stat">
+          <span className="route-stat-value">{Math.round(route.time_min)}</span>
+          <span className="route-stat-unit">분</span>
+        </div>
+      </div>
+      {nearbyDongs.length > 0 && (
+        <div className="route-via-dongs">
+          <span className="via-label">핫 지역 경유:</span>
+          {nearbyDongs.map((d) => (
+            <span key={d.dong_code} className="via-dong-chip">
+              {d.dong_name}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
