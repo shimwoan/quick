@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import WakeLockBanner from './components/WakeLockBanner';
-import NaverMap from './components/NaverMap';
+import NaverMap, { type NaverMapHandle } from './components/NaverMap';
 import OrderInput from './components/OrderInput';
 import RouteList from './components/RouteList';
 import HotDongList from './components/HotDongList';
@@ -27,6 +27,9 @@ export default function App() {
   const [panelHeight, setPanelHeight] = useState(PANEL_MIN);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const mapHandle = useRef<NaverMapHandle>(null);
+  const panelContentRef = useRef<HTMLDivElement>(null);
+  const routeListRef = useRef<HTMLDivElement>(null);
 
   // 터치 드래그 핸들러
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -61,6 +64,11 @@ export default function App() {
       const startLoc = orders[0].pickup_location;
       const rec = await recommendRoute(startLoc, 0, orders, heatmapDongs);
       setRecommendation(rec);
+      // 패널 스크롤을 "경로 추천 결과"로 이동 + 지도 맞춤
+      setTimeout(() => {
+        routeListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        mapHandle.current?.fitToRoutes();
+      }, 100);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '경로 추천에 실패했습니다.';
       setErrorMsg(message);
@@ -83,6 +91,10 @@ export default function App() {
       const startLoc = orders[0].pickup_location;
       const rec = await recalculateRoute(startLoc, 0, existingOrders, newOrder, heatmapDongs);
       setRecommendation(rec);
+      setTimeout(() => {
+        routeListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        mapHandle.current?.fitToRoutes();
+      }, 100);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '경로 재계산에 실패했습니다.';
       setErrorMsg(message);
@@ -104,6 +116,7 @@ export default function App() {
 
       <div className="map-container">
         <NaverMap
+          ref={mapHandle}
           routes={allRoutes}
           selectedRouteIndex={selectedRouteIndex}
           hotDongs={hotDongs}
@@ -143,7 +156,7 @@ export default function App() {
           <div className="panel-handle-bar" />
         </div>
 
-        <div className="panel-content">
+        <div className="panel-content" ref={panelContentRef}>
           <OrderInput />
 
           <div className="action-buttons">
@@ -170,7 +183,9 @@ export default function App() {
 
           {errorMsg && <div className="error-message">{errorMsg}</div>}
 
-          <RouteList />
+          <div ref={routeListRef}>
+            <RouteList />
+          </div>
           <HotDongList dongs={hotDongs} />
         </div>
       </div>

@@ -1,6 +1,10 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import type { Route, DongScore, LatLng } from '../types';
 import type { DongHeatData } from '../hooks/useDongScores';
+
+export interface NaverMapHandle {
+  fitToRoutes: () => void;
+}
 
 declare global {
   interface Window {
@@ -59,18 +63,48 @@ function getHeatOpacity(score: number): number {
   return 0.15;
 }
 
-export default function NaverMap({
+const NaverMap = forwardRef<NaverMapHandle, NaverMapProps>(function NaverMap({
   routes,
   selectedRouteIndex,
   hotDongs,
   currentLocation,
   heatmapDongs,
-}: NaverMapProps) {
+}, ref) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const polylinesRef = useRef<any[]>([]);
   const heatmapMarkersRef = useRef<any[]>([]);
+
+  // 외부에서 호출: 경로 전체가 보이도록 지도 bounds 맞춤 (하단 패널 고려하여 위로 오프셋)
+  useImperativeHandle(ref, () => ({
+    fitToRoutes: () => {
+      const map = mapInstanceRef.current;
+      if (!map || !window.naver?.maps || routes.length === 0) return;
+
+      const nMaps = window.naver.maps;
+      const bounds = new nMaps.LatLngBounds();
+
+      for (const route of routes) {
+        // path(실제 도로 경로)가 있으면 사용
+        const points = route.path && route.path.length > 0 ? route.path : route.waypoints;
+        for (const p of points) {
+          bounds.extend(new nMaps.LatLng(p.lat, p.lng));
+        }
+      }
+
+      if (bounds.isEmpty()) return;
+
+      // 하단 패널이 화면의 약 40%를 차지하므로, bounds 아래쪽을 확장하여 경로가 위로 올라오게 함
+      const sw = bounds.getSW();
+      const ne = bounds.getNE();
+      const latSpan = ne.lat() - sw.lat();
+      const paddedSW = new nMaps.LatLng(sw.lat() - latSpan * 0.5, sw.lng());
+      bounds.extend(paddedSW);
+
+      map.fitBounds(bounds, { top: 20, right: 20, bottom: 20, left: 20 });
+    },
+  }), [routes]);
 
   // 지도 초기화
   useEffect(() => {
@@ -332,4 +366,6 @@ export default function NaverMap({
   }, [heatmapDongs]);
 
   return <div ref={mapRef} className="naver-map" />;
-}
+});
+
+export default NaverMap;
