@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { useRouteStore } from '../stores/useRouteStore';
-import type { DongScore } from '../types';
-import { MIN_HOT_DONG_SCORE } from '../constants';
+import type { Route } from '../types';
+import type { DongHeatData } from '../hooks/useDongScores';
+import { findDongsAlongPath } from '../utils/dongLookup';
 
 /** 0~100 스코어를 현실적 콜 예상 범위로 변환 */
 function toCallRange(score: number): string {
@@ -10,65 +12,38 @@ function toCallRange(score: number): string {
 }
 
 interface RouteListProps {
-  hotDongs: DongScore[];
+  heatmapDongs: DongHeatData[];
 }
 
-export default function RouteList({ hotDongs }: RouteListProps) {
+export default function RouteList({ heatmapDongs }: RouteListProps) {
   const { recommendation, selectedRouteIndex, selectRoute } = useRouteStore();
 
   if (!recommendation) return null;
 
   const { shortest_route, recommendations } = recommendation;
-  const nearbyDongs = hotDongs.filter((d) => d.call_expectation >= MIN_HOT_DONG_SCORE);
 
   return (
     <div className="route-list">
       <h3 className="section-title">경로 추천 결과</h3>
 
-      {/* 최단 경로 */}
-      <div
-        className={`route-card ${selectedRouteIndex === -1 ? 'route-card--selected' : ''}`}
-        onClick={() => selectRoute(-1)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && selectRoute(-1)}
-      >
-        <div className="route-card-header">
-          <span className="route-label route-label--shortest">최단경로</span>
-        </div>
-        <div className="route-card-body">
-          <div className="route-stat">
-            <span className="route-stat-value">{shortest_route.distance_km.toFixed(1)}</span>
-            <span className="route-stat-unit">km</span>
-          </div>
-          <div className="route-stat">
-            <span className="route-stat-value">{Math.round(shortest_route.time_min)}</span>
-            <span className="route-stat-unit">분</span>
-          </div>
-        </div>
-        {nearbyDongs.length > 0 && (
-          <div className="route-via-dongs">
-            <span className="via-label">인근 핫 지역:</span>
-            {nearbyDongs.map((d) => (
-              <span key={d.dong_code} className="via-dong-chip">{d.dong_name}</span>
-            ))}
-          </div>
-        )}
-      </div>
+      <RouteCard
+        route={shortest_route}
+        selected={selectedRouteIndex === -1}
+        onSelect={() => selectRoute(-1)}
+        heatmapDongs={heatmapDongs}
+        label={<span className="route-label route-label--shortest">최단경로</span>}
+        labelPrefix="인근 핫 지역:"
+      />
 
-      {/* 추천 경로들 — 각 추천의 via_dongs 표시 */}
-      {recommendations.map((rec, idx) => {
-        const viaDongs = rec.via_dongs.filter((d) => d.call_expectation >= MIN_HOT_DONG_SCORE);
-        return (
-          <div
-            key={rec.rank}
-            className={`route-card ${selectedRouteIndex === idx ? 'route-card--selected' : ''}`}
-            onClick={() => selectRoute(idx)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && selectRoute(idx)}
-          >
-            <div className="route-card-header">
+      {recommendations.map((rec, idx) => (
+        <RouteCard
+          key={rec.rank}
+          route={rec}
+          selected={selectedRouteIndex === idx}
+          onSelect={() => selectRoute(idx)}
+          heatmapDongs={heatmapDongs}
+          label={
+            <>
               <span className="route-label route-label--rec">
                 {rec.label || `추천 ${rec.rank}`}
               </span>
@@ -76,28 +51,68 @@ export default function RouteList({ hotDongs }: RouteListProps) {
               <span className="badge badge--calls">
                 콜 기대 {toCallRange(rec.total_call_expectation)}건
               </span>
-            </div>
-            <div className="route-card-body">
-              <div className="route-stat">
-                <span className="route-stat-value">{rec.distance_km.toFixed(1)}</span>
-                <span className="route-stat-unit">km</span>
-              </div>
-              <div className="route-stat">
-                <span className="route-stat-value">{Math.round(rec.time_min)}</span>
-                <span className="route-stat-unit">분</span>
-              </div>
-            </div>
-            {viaDongs.length > 0 && (
-              <div className="route-via-dongs">
-                <span className="via-label">핫 지역 경유:</span>
-                {viaDongs.map((d) => (
-                  <span key={d.dong_code} className="via-dong-chip">{d.dong_name}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+            </>
+          }
+          labelPrefix="핫 지역 경유:"
+        />
+      ))}
+    </div>
+  );
+}
+
+function RouteCard({
+  route,
+  selected,
+  onSelect,
+  heatmapDongs,
+  label,
+  labelPrefix,
+}: {
+  route: Route;
+  selected: boolean;
+  onSelect: () => void;
+  heatmapDongs: DongHeatData[];
+  label: React.ReactNode;
+  labelPrefix: string;
+}) {
+  // GeoJSON 폴리곤으로 경로가 실제로 통과하는 핫동 체크
+  const [passedDongs, setPassedDongs] = useState<DongHeatData[]>([]);
+
+  useEffect(() => {
+    if (!route.path || route.path.length === 0) {
+      setPassedDongs([]);
+      return;
+    }
+    findDongsAlongPath(route.path, heatmapDongs).then(setPassedDongs);
+  }, [route.path, heatmapDongs]);
+
+  return (
+    <div
+      className={`route-card ${selected ? 'route-card--selected' : ''}`}
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onSelect()}
+    >
+      <div className="route-card-header">{label}</div>
+      <div className="route-card-body">
+        <div className="route-stat">
+          <span className="route-stat-value">{route.distance_km.toFixed(1)}</span>
+          <span className="route-stat-unit">km</span>
+        </div>
+        <div className="route-stat">
+          <span className="route-stat-value">{Math.round(route.time_min)}</span>
+          <span className="route-stat-unit">분</span>
+        </div>
+      </div>
+      {passedDongs.length > 0 && (
+        <div className="route-via-dongs">
+          <span className="via-label">{labelPrefix}</span>
+          {passedDongs.map((d) => (
+            <span key={d.dong_code} className="via-dong-chip">{d.dong_name}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
