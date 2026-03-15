@@ -135,8 +135,8 @@ function filterHotDongsAlongBasePath(
   goal: LatLng,
   hotDongs: HotDong[],
 ): RankedHotDong[] {
-  const MAX_DIST_TO_ROUTE_KM = 1.5; // 실제 도로 경로에서 1.5km 이내만
-  const MAX_DETOUR_RATIO = 1.3;     // 우회 비율 30% 초과 시 제외
+  const MAX_DIST_TO_ROUTE_KM = 2.0; // 프론트 constants.ts의 MAX_DONG_ROUTE_DIST_KM과 동일하게 유지
+  const MAX_DETOUR_RATIO = 1.3;
 
   const directKm = haversineKm(start, goal);
   if (directKm < 0.1) return [];
@@ -441,7 +441,7 @@ export async function buildRouteRecommendation(
     baseResult.path,
     currentLocation,
     goal,
-    allHotDongs.filter((d) => d.call_expectation >= 50),
+    allHotDongs.filter((d) => d.call_expectation >= 40), // 프론트 constants.ts의 MIN_HOT_DONG_SCORE과 동일하게 유지
   );
 
   // 4. 추가 소요시간 추정

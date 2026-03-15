@@ -8,6 +8,7 @@ import { useOrderStore } from './stores/useOrderStore';
 import { useRouteStore } from './stores/useRouteStore';
 import { recommendRoute, recalculateRoute } from './services/routeService';
 import type { Route } from './types';
+import { MIN_HOT_DONG_SCORE, MAX_DONG_ROUTE_DIST_KM } from './constants';
 
 const PANEL_MIN = 340;     // 접힌 상태 최소 높이
 const PANEL_MAX_VH = 85;   // 최대 높이 (vh)
@@ -128,13 +129,13 @@ export default function App() {
     if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
 
     return allHotDongs.filter((dong) => {
-      if (dong.call_expectation < 50) return false;
+      if (dong.call_expectation < MIN_HOT_DONG_SCORE) return false;
       const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
       if (!heat) return false;
       for (const p of sampled) {
         const dlat = (p.lat - heat.lat) * 111;
         const dlng = (p.lng - heat.lng) * 88;
-        if (Math.sqrt(dlat * dlat + dlng * dlng) <= 1.5) return true;
+        if (Math.sqrt(dlat * dlat + dlng * dlng) <= MAX_DONG_ROUTE_DIST_KM) return true;
       }
       return false;
     });

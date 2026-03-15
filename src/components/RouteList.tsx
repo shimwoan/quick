@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useRouteStore } from '../stores/useRouteStore';
 import type { DongScore, Route, LatLng } from '../types';
 import type { DongHeatData } from '../hooks/useDongScores';
+import { MIN_HOT_DONG_SCORE, MAX_DONG_ROUTE_DIST_KM } from '../constants';
 
 /** 0~100 스코어를 현실적 콜 예상 범위로 변환 */
 function toCallRange(score: number): string {
@@ -17,7 +18,7 @@ function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }
   return Math.sqrt(dlat * dlat + dlng * dlng);
 }
 
-/** 경로 path에서 1.5km 이내인 동만 필터 */
+/** 경로 path에서 MAX_DONG_ROUTE_DIST_KM 이내인 동만 필터 */
 function filterDongsNearPath(
   path: LatLng[] | undefined,
   hotDongs: DongScore[],
@@ -31,15 +32,13 @@ function filterDongsNearPath(
   if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
 
   return hotDongs.filter((dong) => {
-    // 50점 미만은 핫 지역 아님
-    if (dong.call_expectation < 50) return false;
+    if (dong.call_expectation < MIN_HOT_DONG_SCORE) return false;
     // heatmapDongs에서 좌표 찾기
     const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
     if (!heat) return false;
 
-    // path 위의 아무 점에서 1.5km 이내인지
     for (const p of sampled) {
-      if (distKm(p, heat) <= 1.5) return true;
+      if (distKm(p, heat) <= MAX_DONG_ROUTE_DIST_KM) return true;
     }
     return false;
   });
