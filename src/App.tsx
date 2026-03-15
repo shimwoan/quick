@@ -106,7 +106,38 @@ export default function App() {
     return [recommendation.shortest_route, ...recommendation.recommendations];
   }, [recommendation]);
 
-  const hotDongs = recommendation?.nearby_hot_dongs ?? [];
+  const allHotDongs = recommendation?.nearby_hot_dongs ?? [];
+
+  // 선택된 경로의 실제 path 기준으로 가까운 핫동만 지도에 표시
+  const hotDongs = useMemo(() => {
+    if (!recommendation || allHotDongs.length === 0) return [];
+
+    let selectedRoute;
+    if (selectedRouteIndex === null || selectedRouteIndex === -1) {
+      selectedRoute = recommendation.shortest_route;
+    } else {
+      selectedRoute = recommendation.recommendations[selectedRouteIndex];
+    }
+
+    const path = selectedRoute?.path;
+    if (!path || path.length === 0) return allHotDongs;
+
+    // path 샘플링
+    const sampled: { lat: number; lng: number }[] = [];
+    for (let i = 0; i < path.length; i += 10) sampled.push(path[i]);
+    if (sampled[sampled.length - 1] !== path[path.length - 1]) sampled.push(path[path.length - 1]);
+
+    return allHotDongs.filter((dong) => {
+      const heat = heatmapDongs.find((h) => h.dong_code === dong.dong_code);
+      if (!heat) return false;
+      for (const p of sampled) {
+        const dlat = (p.lat - heat.lat) * 111;
+        const dlng = (p.lng - heat.lng) * 88;
+        if (Math.sqrt(dlat * dlat + dlng * dlng) <= 1.5) return true;
+      }
+      return false;
+    });
+  }, [recommendation, selectedRouteIndex, allHotDongs, heatmapDongs]);
 
   return (
     <div className="app">
@@ -183,7 +214,7 @@ export default function App() {
           {errorMsg && <div className="error-message">{errorMsg}</div>}
 
           <div ref={routeListRef}>
-            <RouteList hotDongs={hotDongs} heatmapDongs={heatmapDongs} />
+            <RouteList hotDongs={allHotDongs} heatmapDongs={heatmapDongs} />
           </div>
         </div>
       </div>
