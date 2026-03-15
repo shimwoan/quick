@@ -1,7 +1,8 @@
-export interface Location {
+export interface LatLng {
   lat: number;
   lng: number;
 }
+
 
 export interface DongScore {
   dong_code: string;
@@ -13,9 +14,9 @@ export interface DongScore {
 export interface Order {
   id: string;
   pickup_address: string;
-  pickup_location: Location;
+  pickup_location: LatLng;
   dropoff_address: string;
-  dropoff_location: Location;
+  dropoff_location: LatLng;
   status: 'pending' | 'picked_up' | 'in_transit' | 'completed' | 'cancelled';
 }
 
@@ -31,7 +32,7 @@ export interface Route {
   distance_km: number;
   time_min: number;
   waypoints: RouteWaypoint[];
-  path?: Location[]; // 실제 도로 경로 좌표
+  path?: LatLng[]; // 실제 도로 경로 좌표
 }
 
 export interface RecommendedRoute extends Route {

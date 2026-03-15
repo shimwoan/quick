@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useOrderStore } from '../stores/useOrderStore';
-import type { Order, Location } from '../types';
+import type { Order, LatLng } from '../types';
 
 declare global {
   interface Window {
@@ -47,7 +47,7 @@ function searchAddress(): Promise<{ address: string; jibunAddress: string } | nu
   });
 }
 
-async function geocodeWithNaver(address: string): Promise<Location | null> {
+async function geocodeWithNaver(address: string): Promise<LatLng | null> {
   return new Promise((resolve) => {
     if (!window.naver?.maps?.Service) {
       resolve(null);
@@ -87,8 +87,8 @@ export default function OrderInput() {
   const { orders, addOrder, removeOrder } = useOrderStore();
   const [pickupAddress, setPickupAddress] = useState('');
   const [dropoffAddress, setDropoffAddress] = useState('');
-  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
-  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
+  const [pickupLocation, setPickupLocation] = useState<LatLng | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<LatLng | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 

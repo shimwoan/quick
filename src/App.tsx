@@ -107,7 +107,7 @@ export default function App() {
           routes={allRoutes}
           selectedRouteIndex={selectedRouteIndex}
           hotDongs={hotDongs}
-          currentLocation={location}
+          currentLocation={null}
           heatmapDongs={heatmapDongs}
         />
       </div>

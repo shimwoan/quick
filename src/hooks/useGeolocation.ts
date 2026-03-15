@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Location } from '../types';
+import type { LatLng } from '../types';
 
 interface GeolocationState {
-  location: Location | null;
+  location: LatLng | null;
   heading: number | null;
   error: string | null;
   isTracking: boolean;
 }
 
 export function useGeolocation(): GeolocationState {
-  const [location, setLocation] = useState<Location | null>(null);
+  const [location, setLocation] = useState<LatLng | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTracking, setIsTracking] = useState(false);

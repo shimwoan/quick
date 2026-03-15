@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import type { Route, DongScore, Location } from '../types';
+import type { Route, DongScore, LatLng } from '../types';
 import type { DongHeatData } from '../hooks/useDongScores';
 
 declare global {
@@ -12,7 +12,7 @@ interface NaverMapProps {
   routes: Route[];
   selectedRouteIndex: number | null;
   hotDongs: DongScore[];
-  currentLocation: Location | null;
+  currentLocation: LatLng | null;
   heatmapDongs?: DongHeatData[];
 }
 

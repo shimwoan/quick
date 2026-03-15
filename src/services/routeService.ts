@@ -1,9 +1,9 @@
 import { supabase } from '../lib/supabase';
-import type { Order, Location, RouteRecommendation } from '../types';
+import type { Order, LatLng, RouteRecommendation } from '../types';
 import type { DongHeatData } from '../hooks/useDongScores';
 
 export async function recommendRoute(
-  currentLocation: Location,
+  currentLocation: LatLng,
   heading: number | null,
   orders: Order[],
   hotDongs: DongHeatData[],
@@ -38,7 +38,7 @@ export async function recommendRoute(
 }
 
 export async function recalculateRoute(
-  currentLocation: Location,
+  currentLocation: LatLng,
   heading: number | null,
   existingOrders: Order[],
   newOrder: Order,
