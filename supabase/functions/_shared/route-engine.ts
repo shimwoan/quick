@@ -450,118 +450,106 @@ export async function buildRouteRecommendation(
     dong.extra_time_min = Math.round((detourKm / 30) * 60);
   }
 
-  // 5. 추천 경로 생성
+  // 5. 추천 경로 생성: 각 핫동을 개별 경유하는 경로 (점수 높은 순)
+  //    추천 1 = 가장 핫한 동 경유, 추천 2 = 두 번째 핫한 동 경유, ...
   const filtered: RecommendedRoute[] = [];
+  const byScore = [...rankedHotDongs].sort((a, b) => b.call_expectation - a.call_expectation);
 
-  // 추천 1: 최단경로 그대로 + 지나가는 핫동 정보
-  const viaDongs1: DongScore[] = rankedHotDongs.map((d) => ({
-    dong_code: d.dong_code,
-    dong_name: d.dong_name,
-    call_expectation: d.call_expectation,
-    extra_time_min: d.extra_time_min,
-  }));
+  for (let i = 0; i < Math.min(byScore.length, maxRecommendations); i++) {
+    const dong = byScore[i];
 
-  if (viaDongs1.length > 0) {
-    filtered.push({
-      rank: 1,
-      label: '추천 1',
-      distance_km: baseDistKm,
-      time_min: baseTimeMin,
-      extra_time_min: 0,
-      total_call_expectation: rankedHotDongs.reduce((s, d) => s + d.call_expectation, 0),
-      via_dongs: viaDongs1,
-      waypoints: shortestWaypoints,
-      path: baseResult.path,
-    });
-  }
+    const detourIntermediates = sortWaypointsAlongBasePath(
+      baseResult.path,
+      [...orderIntermediates, dong.center_point],
+    );
 
-  // 추천 2: 가장 핫한 동을 실제 경유하는 우회 경로
-  // 최단경로에서 이미 가까운 동(1km 이내)은 제외하고, 가장 점수 높은 동 1개를 경유
-  if (rankedHotDongs.length > 0) {
-    // 최단경로에서 이미 가까운 동 찾기
-    const basePathSampled = samplePath(baseResult.path, 50);
-    const alreadyNearby = new Set<string>();
-    for (const dong of rankedHotDongs) {
-      for (const p of basePathSampled) {
-        if (haversineKm(p, dong.center_point) <= 1.0) {
-          alreadyNearby.add(dong.dong_code);
-          break;
-        }
-      }
-    }
-
-    // 최단경로에서 멀지만 점수 높은 동 = 일부러 경유할 가치 있는 동
-    const detourCandidates = rankedHotDongs
-      .filter((d) => !alreadyNearby.has(d.dong_code))
-      .sort((a, b) => b.call_expectation - a.call_expectation);
-
-    if (detourCandidates.length > 0) {
-      const detourDong = detourCandidates[0];
-
-      // Naver에 경유지로 추가
-      const detourIntermediates = sortWaypointsAlongBasePath(
-        baseResult.path,
-        [...orderIntermediates, detourDong.center_point],
+    try {
+      const detourResult = await callNaverDirections(
+        currentLocation,
+        goal,
+        detourIntermediates.length > 0 ? detourIntermediates : undefined,
       );
 
-      try {
-        const detourResult = await callNaverDirections(
-          currentLocation,
-          goal,
-          detourIntermediates.length > 0 ? detourIntermediates : undefined,
-        );
+      const detourTimeMin = Math.round(detourResult.duration_ms / 60000);
+      const detourDistKm = Math.round(detourResult.distance_m / 1000 * 10) / 10;
 
-        const detourTimeMin = Math.round(detourResult.duration_ms / 60000);
-        const detourDistKm = Math.round(detourResult.distance_m / 1000 * 10) / 10;
+      // 실제 반환된 경로 path를 기준으로 근처(2km) 핫동을 모두 찾기
+      const recPathSampled = samplePath(detourResult.path, 50);
+      const viaDongs: DongScore[] = [];
+      const seen = new Set<string>();
 
-        if (detourDistKm > baseDistKm && detourTimeMin > baseTimeMin) {
-          const detourViaDongs: DongScore[] = [{
-            dong_code: detourDong.dong_code,
-            dong_name: detourDong.dong_name,
-            call_expectation: detourDong.call_expectation,
-            extra_time_min: detourTimeMin - baseTimeMin,
-          }];
-
-          const detourWaypoints: RouteWaypoint[] = [
-            { lat: currentLocation.lat, lng: currentLocation.lng, type: "current" },
-          ];
-          for (const wp of orderedWps) {
-            detourWaypoints.push({
-              lat: wp.location.lat, lng: wp.location.lng,
-              type: wp.type, order_id: wp.order_id,
-            });
+      for (const hd of allHotDongs) {
+        if (hd.call_expectation < 40) continue; // MIN_HOT_DONG_SCORE
+        for (const p of recPathSampled) {
+          if (haversineKm(p, hd.center_point) <= 2.0) {
+            if (!seen.has(hd.dong_code)) {
+              seen.add(hd.dong_code);
+              viaDongs.push({
+                dong_code: hd.dong_code,
+                dong_name: hd.dong_name,
+                call_expectation: hd.call_expectation,
+                extra_time_min: 0,
+              });
+            }
+            break;
           }
-          detourWaypoints.push({
-            lat: detourDong.center_point.lat, lng: detourDong.center_point.lng,
-            type: "hot_zone", dong: detourDong.dong_name,
-          });
+        }
+      }
 
-          filtered.push({
-            rank: 2,
-            label: '추천 2',
-            distance_km: detourDistKm,
-            time_min: detourTimeMin,
-            extra_time_min: detourTimeMin - baseTimeMin,
-            total_call_expectation: detourDong.call_expectation,
-            via_dongs: detourViaDongs,
-            waypoints: detourWaypoints,
-            path: detourResult.path,
+      const recWaypoints: RouteWaypoint[] = [
+        { lat: currentLocation.lat, lng: currentLocation.lng, type: "current" },
+      ];
+      for (const wp of orderedWps) {
+        recWaypoints.push({
+          lat: wp.location.lat, lng: wp.location.lng,
+          type: wp.type, order_id: wp.order_id,
+        });
+      }
+      // hot_zone waypoints도 실제 경로 근처 핫동 전부 추가
+      for (const vd of viaDongs) {
+        const hd = allHotDongs.find((h) => h.dong_code === vd.dong_code);
+        if (hd) {
+          recWaypoints.push({
+            lat: hd.center_point.lat, lng: hd.center_point.lng,
+            type: "hot_zone", dong: hd.dong_name,
           });
         }
-      } catch (err) {
-        console.error("Detour route failed:", err);
       }
+
+      filtered.push({
+        rank: filtered.length + 1,
+        label: `추천 ${filtered.length + 1}`,
+        distance_km: detourDistKm,
+        time_min: detourTimeMin,
+        extra_time_min: Math.max(0, detourTimeMin - baseTimeMin),
+        total_call_expectation: viaDongs.reduce((s, d) => s + d.call_expectation, 0),
+        via_dongs: viaDongs,
+        waypoints: recWaypoints,
+        path: detourResult.path,
+      });
+    } catch (err) {
+      console.error(`Recommendation for ${dong.dong_name} failed:`, err);
     }
   }
 
-  const nearbyHotDongs: DongScore[] = rankedHotDongs
-    .sort((a, b) => b.call_expectation - a.call_expectation)
-    .map((d) => ({
-      dong_code: d.dong_code,
-      dong_name: d.dong_name,
-      call_expectation: d.call_expectation,
-      extra_time_min: d.extra_time_min,
-    }));
+  // 최단경로 기준 nearby_hot_dongs도 실제 path에서 2km 이내 핫동
+  const basePathSampled = samplePath(baseResult.path, 50);
+  const nearbyHotDongs: DongScore[] = [];
+  for (const hd of allHotDongs) {
+    if (hd.call_expectation < 40) continue;
+    for (const p of basePathSampled) {
+      if (haversineKm(p, hd.center_point) <= 2.0) {
+        nearbyHotDongs.push({
+          dong_code: hd.dong_code,
+          dong_name: hd.dong_name,
+          call_expectation: hd.call_expectation,
+          extra_time_min: hd.extra_time_min,
+        });
+        break;
+      }
+    }
+  }
+  nearbyHotDongs.sort((a, b) => b.call_expectation - a.call_expectation);
 
   return {
     shortest_route: shortestRoute,
