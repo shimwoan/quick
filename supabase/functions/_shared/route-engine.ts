@@ -135,8 +135,8 @@ function filterHotDongsAlongBasePath(
   goal: LatLng,
   hotDongs: HotDong[],
 ): RankedHotDong[] {
-  const MAX_DIST_TO_ROUTE_KM = 3.0; // 실제 도로 경로에서 3km 이내
-  const MAX_DETOUR_RATIO = 1.5;     // 우회 비율 50% 초과 시 제외
+  const MAX_DIST_TO_ROUTE_KM = 1.5; // 실제 도로 경로에서 1.5km 이내만
+  const MAX_DETOUR_RATIO = 1.3;     // 우회 비율 30% 초과 시 제외
 
   const directKm = haversineKm(start, goal);
   if (directKm < 0.1) return [];
