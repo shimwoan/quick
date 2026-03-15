@@ -441,7 +441,7 @@ export async function buildRouteRecommendation(
     baseResult.path,
     currentLocation,
     goal,
-    allHotDongs.filter((d) => d.call_expectation >= 20),
+    allHotDongs.filter((d) => d.call_expectation >= 50),
   );
 
   // 4. 추가 소요시간 추정
