@@ -10,7 +10,7 @@ import { useRouteStore } from './stores/useRouteStore';
 import { recommendRoute, recalculateRoute } from './services/routeService';
 import type { Route } from './types';
 
-const PANEL_MIN = 280;     // 접힌 상태 최소 높이
+const PANEL_MIN = 340;     // 접힌 상태 최소 높이
 const PANEL_MAX_VH = 85;   // 최대 높이 (vh)
 
 export default function App() {
